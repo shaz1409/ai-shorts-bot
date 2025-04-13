@@ -8,6 +8,7 @@ from scipy.interpolate import interp1d
 from moviepy.editor import VideoFileClip, CompositeVideoClip
 from captioning import get_captions_for_clip, style_caption
 
+
 def track_face_x_centers(subclip, num_samples=20):
     duration = subclip.duration
     timestamps = np.linspace(0, duration, num_samples)
