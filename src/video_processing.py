@@ -6,7 +6,8 @@ import numpy as np
 from datetime import datetime
 from scipy.interpolate import interp1d
 from moviepy.editor import VideoFileClip, CompositeVideoClip
-from captioning import get_captions_for_clip, style_caption
+from src.captioning import get_captions_for_clip, style_caption
+
 
 
 def track_face_x_centers(subclip, num_samples=20):

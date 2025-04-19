@@ -2,10 +2,10 @@ import os
 import json
 from datetime import datetime
 from dotenv import load_dotenv
-from utils.download import download_youtube_video
-from utils.transcription import transcribe_video
-from gpt_matching import find_clip_segments
-from video_processing import cut_clips
+from src.utils.download import download_youtube_video
+from src.utils.transcription import transcribe_video
+from src.gpt_matching import find_clip_segments
+from src.video_processing import cut_clips
 
 load_dotenv()
 

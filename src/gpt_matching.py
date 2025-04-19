@@ -14,7 +14,7 @@ def transcribe_video(video_path):
     ffmpeg_dir = os.getenv("FFMPEG_PATH")
     if ffmpeg_dir:
         os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ["PATH"]
-    model = whisper.load_model("base")
+    model = whisper.load_model("tiny")
     print("🔍 Transcribing...")
     result = model.transcribe(video_path)
     return result["segments"]

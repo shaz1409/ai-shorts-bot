@@ -19,14 +19,20 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "..", "templates"))
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+
 @app.post("/generate", response_class=HTMLResponse)
 async def generate_video(request: Request, url: str = Form(...)):
-    video_path, title_safe = download_youtube_video(url)
-    segments = transcribe_video(video_path)
-    highlights = find_clip_segments(segments)
-    clips = cut_clips(video_path, highlights, title_safe, segments)
+    try:
+        video_path, title_safe = download_youtube_video(url)
+        segments = transcribe_video(video_path)
+        highlights = find_clip_segments(segments)
+        clips = cut_clips(video_path, highlights, title_safe, segments)
+
+        message = f"✅ {len(clips)} short(s) generated for: {title_safe}"
+    except Exception as e:
+        message = f"❌ Failed to generate shorts: {str(e)}"
 
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "message": f"✅ {len(clips)} short(s) generated for: {title_safe}"
+        "message": message
     })
