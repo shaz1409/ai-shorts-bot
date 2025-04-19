@@ -1,19 +1,145 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>AI Shorts Bot</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Short4Me | AI Shorts Bot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    let pollInterval;
+
+    async function pollStatus(jobId) {
+      const response = await fetch(`/status/${jobId}`);
+      const data = await response.json();
+      const status = data.status;
+      const output = data.output;
+
+      const progressEl = document.getElementById("progress-bar");
+      const percentEl = document.getElementById("progress-percent");
+      const videoContainer = document.getElementById("video-preview-container");
+      const errorMessage = document.getElementById("error-message");
+
+      let current = parseInt(progressEl.getAttribute("data-progress"));
+
+      if (status === "complete") {
+        progressEl.style.width = "100%";
+        percentEl.innerText = "100%";
+        progressEl.classList.replace("bg-blue-500", "bg-green-500");
+        clearInterval(pollInterval);
+
+        document.getElementById("loading-state").classList.add("hidden");
+        errorMessage.classList.add("hidden");
+
+        videoContainer.innerHTML = output.map(file => `
+          <div class="mt-4 p-2 border rounded bg-gray-50">
+            <video class="mb-2" width="100%" controls src="/static/${data.job_id}/${file}"></video>
+            <label class="flex items-center">
+              <input type="checkbox" class="mr-2" value="${file}" name="selectedVideos" />
+              Download this video
+            </label>
+          </div>
+        `).join("");
+
+        document.getElementById("zip-download-btn").classList.remove("hidden");
+
+      } else if (status.startsWith("error")) {
+        percentEl.innerText = "Error";
+        progressEl.classList.replace("bg-blue-500", "bg-red-500");
+        clearInterval(pollInterval);
+
+        document.getElementById("loading-state").classList.add("hidden");
+
+        errorMessage.classList.remove("hidden");
+        errorMessage.innerText = "⚠️ This video may be private or unavailable. Please try another.";
+      } else {
+        if (current < 95) {
+          current += Math.floor(Math.random() * 6 + 2);
+          progressEl.style.width = current + "%";
+          percentEl.innerText = current + "%";
+          progressEl.setAttribute("data-progress", current);
+        }
+      }
+    }
+
+    function startPolling(jobId) {
+      document.getElementById("loading-state").classList.remove("hidden");
+      pollInterval = setInterval(() => pollStatus(jobId), 5000);
+    }
+
+    async function downloadSelected(jobId) {
+      const selected = Array.from(document.querySelectorAll('input[name="selectedVideos"]:checked')).map(input => input.value);
+      if (selected.length === 0) return alert("Please select at least one video.");
+
+      const response = await fetch(`/zip/${jobId}`, {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: selected })
+      });
+
+      const data = await response.json();
+      if (data.download) {
+        window.location.href = data.download;
+      } else {
+        alert("Something went wrong while creating the ZIP file.");
+      }
+    }
+  </script>
 </head>
-<body>
-  <h1>AI Shorts Bot</h1>
-  <form method="post" action="/generate">
-    <input type="text" name="url" placeholder="Paste YouTube URL" style="width: 300px;" required>
-    <button type="submit">Generate</button>
-  </form>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
+  <div class="bg-white shadow-2xl rounded-2xl p-10 w-full max-w-xl">
+    <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">🎬 Short4Me</h1>
+
+    <form method="post" action="/generate-form" class="space-y-4">
+      <label for="url" class="block text-gray-700 font-medium">Paste YouTube URL:</label>
+      <input
+        type="text"
+        id="url"
+        name="url"
+        placeholder="https://www.youtube.com/watch?v=..."
+        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        required
+      />
+
+      <button
+        type="submit"
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold transition duration-200"
+      >
+        Generate Shorts
+      </button>
+    </form>
+
+    {% if job_id %}
+    <script>window.onload = () => startPolling("{{ job_id }}");</script>
+    <div class="mt-8">
+      <h2 class="text-green-700 font-semibold text-lg mb-2">✅ Job Started!</h2>
+      <p class="text-sm text-gray-700">Tracking Job ID:</p>
+      <p class="text-xs text-gray-900 mb-4 break-all">{{ job_id }}</p>
+
+      <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+        <div id="progress-bar" class="bg-blue-500 h-4 transition-all duration-700" style="width: 0%" data-progress="0"></div>
+      </div>
+      <p id="progress-percent" class="text-right text-xs mt-1 text-gray-600">0%</p>
+
+      <div id="loading-state" class="mt-4 text-sm flex items-center gap-2 text-blue-700 hidden">
+        <svg class="animate-spin h-5 w-5 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+        Processing video... please wait.
+      </div>
+
+      <p id="error-message" class="hidden text-red-600 text-sm mt-4 font-medium"></p>
+      <div id="video-preview-container" class="mt-6 space-y-4"></div>
+
+      <button
+        id="zip-download-btn"
+        onclick="downloadSelected('{{ job_id }}')"
+        class="hidden mt-6 w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold transition duration-200"
+      >
+        📥 Download Selected Videos
+      </button>
+    </div>
+    {% endif %}
+  </div>
 </body>
 </html>
-
-
-{% if message %}
-  <p style="margin-top: 10px;">{{ message }}</p>
-{% endif %}

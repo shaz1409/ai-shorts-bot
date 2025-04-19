@@ -1,5 +1,3 @@
-# src/gpt_matching.py
-
 import os
 import re
 import json
@@ -7,6 +5,7 @@ import openai
 import whisper
 from difflib import SequenceMatcher
 from transformers import pipeline
+from src.logging_config import log
 
 sentiment_pipeline = pipeline("sentiment-analysis")
 
@@ -15,7 +14,7 @@ def transcribe_video(video_path):
     if ffmpeg_dir:
         os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ["PATH"]
     model = whisper.load_model("tiny")
-    print("🔍 Transcribing...")
+    log.info("🔍 Transcribing...")
     result = model.transcribe(video_path)
     return result["segments"]
 
@@ -44,7 +43,7 @@ def gpt_highlight_quotes(full_text):
             }
         ]
 
-        print("🧐 GPT-3.5 assisting with highlight detection...")
+        log.info("🧐 GPT-3.5 assisting with highlight detection...")
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages,
@@ -62,13 +61,13 @@ def gpt_highlight_quotes(full_text):
         best_quote = parsed[0:1] if parsed else []
         strong_quotes = [q for q in parsed[1:] if q.get("rating", 0) >= 7]
 
-        print("🧠 Best quote:", best_quote)
-        print("📊 Strong quotes (7+):", len(strong_quotes))
+        log.info(f"🧠 Best quote: {best_quote}")
+        log.info(f"📊 Strong quotes (7+): {len(strong_quotes)}")
 
         return best_quote + strong_quotes[:4]
 
     except Exception as e:
-        print("⚠️ GPT fallback error:", str(e))
+        log.warning(f"⚠️ GPT fallback error: {e}")
         return []
 
 def expand_segment_to_clip(start_index, segments, min_len=45, max_len=60):
@@ -96,7 +95,7 @@ def loose_keyword_match(quote, segment_text):
     return len(overlap) / len(quote_keywords) >= 0.4
 
 def match_quotes_to_segments(quotes, segments):
-    print("🔗 Matching GPT quotes to transcript...")
+    log.info("🔗 Matching GPT quotes to transcript...")
     matched_clips = []
 
     def combine_segments(start_idx, window=3):
@@ -109,28 +108,26 @@ def match_quotes_to_segments(quotes, segments):
         for idx in range(len(segments)):
             combined_text = combine_segments(idx)
 
-            print("🔍 Trying to match:")
-            print("   📢 GPT Quote:", quote)
-            print("   📜 Transcript Chunk:", combined_text)
+            log.info(f"🔍 Trying to match:\n   📢 GPT Quote: {quote}\n   📜 Transcript Chunk: {combined_text}")
 
             if is_similar(quote, combined_text) or loose_keyword_match(quote, combined_text):
                 clip = expand_segment_to_clip(idx, segments)
                 matched_clips.append(clip)
 
-                print(f"\n🎯 Matched quote: \"{quote}\" (Rating: {quote_obj['rating']})")
-                print(f"🎬 Cutting from {clip[0]:.1f}s to {clip[1]:.1f}s (length: {clip[1] - clip[0]:.1f}s)")
+                log.info(f"🎯 Matched quote: \"{quote}\" (Rating: {quote_obj['rating']})")
+                log.info(f"🎬 Cutting from {clip[0]:.1f}s to {clip[1]:.1f}s (length: {clip[1] - clip[0]:.1f}s)")
                 found = True
                 break
 
         if not found:
-            print(f"❌ Could not match quote: {quote}")
+            log.warning(f"❌ Could not match quote: {quote}")
         if len(matched_clips) == 5:
             break
 
     return matched_clips
 
 def fallback_sentiment_selection(segments):
-    print("🤖 Using fallback: sentiment-based selection...")
+    log.info("🤖 Using fallback: sentiment-based selection...")
     results = []
 
     for seg in segments:

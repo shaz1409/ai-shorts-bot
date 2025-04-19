@@ -1,0 +1,38 @@
+<!-- templates/results.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Shorts | Short4Me</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+  <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl p-8">
+    <h1 class="text-3xl font-bold text-center text-gray-800 mb-4">🎬 Your Shorts Are Ready</h1>
+    <p class="text-center text-gray-600 mb-8">Job ID: <code class="text-sm bg-gray-100 px-2 py-1 rounded">{{ job_id }}</code></p>
+
+    <form method="post" action="/download-selected" class="space-y-6">
+      <input type="hidden" name="job_id" value="{{ job_id }}" />
+
+      {% for file in videos %}
+      <div class="border rounded-lg p-4 bg-gray-50">
+        <video src="/static/{{ job_id }}/{{ file }}" controls class="w-full mb-2 rounded"></video>
+        <label class="inline-flex items-center">
+          <input type="checkbox" class="mr-2" name="selected_videos" value="{{ job_id }}/{{ file }}" />
+          Include in Download
+        </label>
+      </div>
+      {% endfor %}
+
+      <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg">
+        📦 Download Selected
+      </button>
+    </form>
+
+    <div class="mt-8 text-center text-sm text-gray-500">
+      <a href="/" class="text-blue-600 hover:underline">⬅ Back to Home</a>
+    </div>
+  </div>
+</body>
+</html>
