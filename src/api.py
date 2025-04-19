@@ -1,38 +1,37 @@
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, BackgroundTasks, Request
+from pydantic import BaseModel
+from uuid import uuid4
 import os
-
-from src.utils.download import download_youtube_video
-from src.utils.transcription import transcribe_video
-from src.gpt_matching import find_clip_segments
-from src.video_processing import cut_clips
+from src.services.video_generator import generate_video_pipeline
 
 app = FastAPI()
 
-# Template location
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "..", "templates"))
+OUTPUT_DIR = "output"
+JOBS = {}  # Basic in-memory status store for now
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+class GenerateRequest(BaseModel):
+    url: str
 
+@app.post("/generate")
+async def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
+    job_id = str(uuid4())
+    job_path = os.path.join(OUTPUT_DIR, job_id)
+    os.makedirs(job_path, exist_ok=True)
 
-@app.post("/generate", response_class=HTMLResponse)
-async def generate_video(request: Request, url: str = Form(...)):
-    try:
-        video_path, title_safe = download_youtube_video(url)
-        segments = transcribe_video(video_path)
-        highlights = find_clip_segments(segments)
-        clips = cut_clips(video_path, highlights, title_safe, segments)
+    JOBS[job_id] = "processing"
+    background_tasks.add_task(generate_video_pipeline, req.url, job_path, job_id, JOBS)
 
-        message = f"✅ {len(clips)} short(s) generated for: {title_safe}"
-    except Exception as e:
-        message = f"❌ Failed to generate shorts: {str(e)}"
+    return {"job_id": job_id, "status": "processing"}
 
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "message": message
-    })
+@app.get("/status/{job_id}")
+async def status(job_id: str):
+    status = JOBS.get(job_id, "not found")
+    return {"job_id": job_id, "status": status}
+
+@app.get("/video/{job_id}")
+async def get_video(job_id: str):
+    path = os.path.join(OUTPUT_DIR, job_id, "final.mp4")
+    if os.path.exists(path):
+        return {"download": f"/static/{job_id}/final.mp4"}
+    else:
+        return {"error": "Video not ready or job not found"}
