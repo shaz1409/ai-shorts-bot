@@ -14,29 +14,31 @@ def download_youtube_video(url, output_dir="downloads"):
     log.info(f"🔗 Attempting to download video: {url}")
 
     try:
+        # Step 1: Check availability
         ydl_check_opts = {
             'quiet': True,
             'skip_download': True,
-            'extract_flat': True,
         }
         with yt_dlp.YoutubeDL(ydl_check_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            if info.get("is_private") or info.get("availability") == "private":
-                raise ValueError("Video is private or unavailable")
-            raw_title = info.get('title', 'video')
-            safe_title = sanitize_title(raw_title)
-            log.info(f"🎬 Raw title: {raw_title}")
-            log.info(f"🧼 Safe title: {safe_title}")
 
-        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if info.get('availability') not in ['public', None]:
-                raise ValueError("Video is not public or available.")
-                log.warning(f"🔒 Video not public: {info.get('availability')}")
+        # Step 2: Filter only public videos
+        availability = info.get("availability", "unknown")
+        is_private = info.get("is_private", False)
+        if is_private or availability not in ["public", None]:
+            log.warning(f"🔒 Video rejected (availability: {availability}, private: {is_private})")
+            raise ValueError("This video is not public or is unavailable.")
 
+        # Step 3: Clean title
+        raw_title = info.get('title', 'video')
+        safe_title = sanitize_title(raw_title)
+        log.info(f"🎬 Title: {raw_title}")
+        log.info(f"🧼 Safe title: {safe_title}")
 
+        # Step 4: Define output template
         output_template = os.path.join(output_dir, f"{safe_title}_{date_tag}.%(ext)s")
 
+        # Step 5: Prepare yt-dlp with FFmpeg
         ffmpeg_path = os.getenv("FFMPEG_PATH") or "ffmpeg"
         log.info(f"🛠 Using ffmpeg from: {ffmpeg_path}")
 
@@ -45,15 +47,25 @@ def download_youtube_video(url, output_dir="downloads"):
             'merge_output_format': 'mp4',
             'ffmpeg_location': ffmpeg_path,
             'outtmpl': output_template,
-            'quiet': False
+            'quiet': False,
+            'cookiefile': 'cookies.txt'  # 👈 This is key!
         }
 
+        if not os.path.exists("cookies.txt"):
+            log.warning("⚠️ cookies.txt not found in expected path!")
+        else:
+            log.info("🍪 cookies.txt found and will be used.")
+
+
+
+        # Step 6: Download the video
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
+        # Step 7: Return downloaded file
         for file in os.listdir(output_dir):
-            if file.endswith(".mp4"):
-                log.info(f"📁 Found video: {file}")
+            if file.endswith(".mp4") and file.startswith(safe_title):
+                log.info(f"📁 Video saved: {file}")
                 return os.path.join(output_dir, file), os.path.splitext(file)[0]
 
         log.warning("⚠️ No MP4 file found after download.")
